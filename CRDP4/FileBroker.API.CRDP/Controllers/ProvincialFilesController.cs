@@ -1,4 +1,5 @@
-﻿using Azure.Storage.Files.Shares;
+﻿using Azure.Core;
+using Azure.Storage.Files.Shares;
 using Azure.Storage.Files.Shares.Models;
 using FileBroker.API.CRDP.Helpers;
 using Microsoft.AspNetCore.Mvc;
@@ -18,21 +19,29 @@ namespace FileBroker.API.CRDP.Controllers
         }
 
         [HttpPost("")]
-        public ActionResult UploadXML([FromServices] IConfiguration config, [FromBody] XElement xmlData)
+        public async Task<ActionResult> UploadXML([FromServices] IConfiguration config)
         {
-            string fileName = HttpContext.Request.Headers["FileName"];
+            var request = HttpContext.Request;
+            string fileName = request.Headers["FileName"];
             if (string.IsNullOrEmpty(fileName))
-                return BadRequest("A");
+                return BadRequest("Missing filename");
 
             string apiKey = HttpContext.Request.Headers["API_KEY"];
             if (string.IsNullOrEmpty(apiKey))
-                return BadRequest("B");
+                return BadRequest("Missing api key");
 
             var apiKeys = config.GetSection("API_KEY");
             string province = GetProvinceFromApiKey(apiKey, apiKeys);
 
             if (string.IsNullOrEmpty(province))
-                return BadRequest("C");
+                return BadRequest("Invalid api key");
+
+            string xmlData;
+            using (var reader = new StreamReader(request.Body, Encoding.UTF8))
+                xmlData = await reader.ReadToEndAsync();
+
+            if (string.IsNullOrEmpty(province))
+                return BadRequest("Missing xml data");
 
             SaveFile(xmlData.ToString(), province.ToLower(), fileName, config);
 
