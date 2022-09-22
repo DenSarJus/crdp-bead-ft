@@ -69,6 +69,8 @@ namespace FileBroker.API.CRDP.Helpers
                 {
                     string variable = tokens[i];
                     string value = Environment.GetEnvironmentVariable(variable, EnvironmentVariableTarget.Machine);
+                    if (string.IsNullOrEmpty(value))
+                        value = Environment.GetEnvironmentVariable(variable);
                     results.Add(variable, value);
                 }
             }
@@ -76,6 +78,8 @@ namespace FileBroker.API.CRDP.Helpers
             {
                 string variable = tokens[0];
                 string value = Environment.GetEnvironmentVariable(variable, EnvironmentVariableTarget.Machine);
+                if (string.IsNullOrEmpty(value))
+                    value = Environment.GetEnvironmentVariable(variable);
                 results.Add(variable, value);
             }
 

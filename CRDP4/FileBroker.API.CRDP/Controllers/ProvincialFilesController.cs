@@ -22,17 +22,17 @@ namespace FileBroker.API.CRDP.Controllers
         {
             string fileName = HttpContext.Request.Headers["FileName"];
             if (string.IsNullOrEmpty(fileName))
-                return BadRequest();
+                return BadRequest("A");
 
             string apiKey = HttpContext.Request.Headers["API_KEY"];
             if (string.IsNullOrEmpty(apiKey))
-                return BadRequest();
+                return BadRequest("B");
 
             var apiKeys = config.GetSection("API_KEY");
             string province = GetProvinceFromApiKey(apiKey, apiKeys);
 
             if (string.IsNullOrEmpty(province))
-                return BadRequest();
+                return BadRequest("C");
 
             SaveFile(xmlData.ToString(), province.ToLower(), fileName, config);
 
