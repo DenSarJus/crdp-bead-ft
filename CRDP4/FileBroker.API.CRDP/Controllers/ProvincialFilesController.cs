@@ -43,7 +43,7 @@ namespace FileBroker.API.CRDP.Controllers
             if (string.IsNullOrEmpty(province))
                 return BadRequest("Missing xml data");
 
-            SaveFile(xmlData.ToString(), province.ToLower(), fileName, config);
+            await SaveFile(xmlData.ToString(), province.ToLower(), fileName, config);
 
             return Created("", "Saved " + fileName);
         }
@@ -63,7 +63,7 @@ namespace FileBroker.API.CRDP.Controllers
             return province;
         }
 
-        private static void SaveFile(string content, string province, string fileName, IConfiguration config)
+        private static async Task SaveFile(string content, string province, string fileName, IConfiguration config)
         {
             string connectionString = config["Storage:ConnectionString"].ReplaceVariablesWithEnvironmentValues();
 
@@ -73,11 +73,11 @@ namespace FileBroker.API.CRDP.Controllers
             var directory = share.GetDirectoryClient("");
             var file = directory.GetFileClient(fileName);
 
-            using (var stream = file.OpenWrite(true, 0, new ShareFileOpenWriteOptions { MaxSize = content.Length }))
+            using (var stream = await file.OpenWriteAsync(true, 0, new ShareFileOpenWriteOptions { MaxSize = content.Length }))
             {
-                stream.Write(Encoding.UTF8.GetBytes(content));
+                await stream.WriteAsync(Encoding.UTF8.GetBytes(content));
 
-                stream.Flush();
+                await stream.FlushAsync();
             }
         }
 
