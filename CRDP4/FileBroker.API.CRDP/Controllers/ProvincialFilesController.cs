@@ -2,8 +2,6 @@
 using Azure.Storage.Files.Shares.Models;
 using FileBroker.API.CRDP.Helpers;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections;
-using System.IO.Pipelines;
 using System.Text;
 
 namespace FileBroker.API.CRDP.Controllers
@@ -19,15 +17,28 @@ namespace FileBroker.API.CRDP.Controllers
         }
 
         [HttpGet("Audit/{cycle}")]
-        public ActionResult GetAudit([FromServices] IConfiguration config,
-                                     [FromRoute] string cycle)
+        public async Task<ActionResult> GetAudit([FromServices] IConfiguration config, [FromRoute] string cycle)
         {
-            return Ok();
+            string apiKey = HttpContext.Request.Headers["API_KEY"];
+
+            var apiKeys = config.GetSection("API_KEY");
+            string province = GetProvinceFromApiKey(apiKey, apiKeys);
+
+            if (string.IsNullOrEmpty(apiKey)) return BadRequest("Missing api key");
+            if (string.IsNullOrEmpty(province)) return BadRequest("Invalid api key");
+
+            string fileName = $"{province}DCO_AUDIT.{cycle}.XML";
+
+            var fileContent = await GetFileAsStream(province, fileName, config);
+
+            if (fileContent is not null)
+                return File(fileContent, "application/xml", fileName);
+            else
+                return NotFound(fileName + " not found");
         }
 
         [HttpGet("Status/{cycle}")]
-        public async Task<ActionResult> GetStatus([FromServices] IConfiguration config,
-                                                  [FromRoute] string cycle)
+        public async Task<ActionResult> GetStatus([FromServices] IConfiguration config, [FromRoute] string cycle)
         {
             string apiKey = HttpContext.Request.Headers["API_KEY"];
 
@@ -39,21 +50,34 @@ namespace FileBroker.API.CRDP.Controllers
 
             string fileName = $"{province}DCO_STATUS.{cycle}.XML";
 
-            var fileContent = await GetXmlFile(province, fileName, config);
+            var fileContent = await GetFileAsStream(province, fileName, config);
 
             if (fileContent is not null)
                 return File(fileContent, "application/xml", fileName);
             else
-                return NotFound();
+                return NotFound(fileName + " not found");
         }
 
         [HttpGet("Processed/{year}/{month}/{day}")]
-        public ActionResult GetAudit([FromServices] IConfiguration config,
-                                     [FromRoute] int year, [FromRoute] int month, [FromRoute] int day)
+        public async Task<ActionResult> GetAudit([FromServices] IConfiguration config, 
+                                                 [FromRoute] string year, [FromRoute] string month, [FromRoute] string day)
         {
+            string apiKey = HttpContext.Request.Headers["API_KEY"];
 
+            var apiKeys = config.GetSection("API_KEY");
+            string province = GetProvinceFromApiKey(apiKey, apiKeys);
 
-            return Ok();
+            if (string.IsNullOrEmpty(apiKey)) return BadRequest("Missing api key");
+            if (string.IsNullOrEmpty(province)) return BadRequest("Invalid api key");
+
+            string fileName = $"Processed_{year}-{month}-{day}.zip";
+
+            var fileContent = await GetFileAsStream(province, fileName, config);
+            
+            if (fileContent is not null)
+                return File(fileContent, "application/zip", fileName);
+            else
+                return NotFound(fileName + " not found");
         }
 
         [HttpPost("")]
@@ -107,15 +131,14 @@ namespace FileBroker.API.CRDP.Controllers
             var directory = share.GetDirectoryClient("");
             var file = directory.GetFileClient(fileName);
 
-            using (var stream = await file.OpenWriteAsync(true, 0, new ShareFileOpenWriteOptions { MaxSize = content.Length }))
-            {
-                await stream.WriteAsync(Encoding.UTF8.GetBytes(content));
+            using var stream = await file.OpenWriteAsync(true, 0, new ShareFileOpenWriteOptions { MaxSize = content.Length });
 
-                await stream.FlushAsync();
-            }
+            await stream.WriteAsync(Encoding.UTF8.GetBytes(content));
+
+            await stream.FlushAsync();
         }
 
-        private static async Task<Stream> GetXmlFile(string province, string fileName, IConfiguration config)
+        private static async Task<Stream> GetFileAsStream(string province, string fileName, IConfiguration config)
         {
             string connectionString = config["Storage:ConnectionString"].ReplaceVariablesWithEnvironmentValues();
 
@@ -129,9 +152,15 @@ namespace FileBroker.API.CRDP.Controllers
             if (!await file.ExistsAsync())
                 return null;
 
-            ShareFileDownloadInfo download = await file.DownloadAsync();
-
-            return download.Content;
+            try
+            {
+                ShareFileDownloadInfo download = await file.DownloadAsync();
+                return download.Content;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
     }
